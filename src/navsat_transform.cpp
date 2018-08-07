@@ -141,8 +141,8 @@ namespace RobotLocalization
         }
 
         // Append the tf prefix in a tf2-friendly manner
-        FilterUtilities::appendPrefix(tf_prefix, world_frame_id_);
-        FilterUtilities::appendPrefix(tf_prefix, base_link_frame_id_);
+        //FilterUtilities::appendPrefix(tf_prefix, world_frame_id_);
+        //FilterUtilities::appendPrefix(tf_prefix, base_link_frame_id_);
 
         robot_localization::SetDatum::Request request;
         request.geo_pose.position.latitude = datum_lat;
@@ -452,7 +452,12 @@ namespace RobotLocalization
 
   void NavSatTransform::gpsFixCallback(const sensor_msgs::NavSatFixConstPtr& msg)
   {
-    gps_frame_id_ = msg->header.frame_id;
+        std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+
+    gps_frame_id_ =frame_str;
 
     if (gps_frame_id_.empty())
     {
@@ -502,6 +507,11 @@ namespace RobotLocalization
     // we need to wait until we receive it.
     if (has_transform_odom_)
     {
+          std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+
       /* This method only gets called if we don't yet have the
        * IMU data (the subscriber gets shut down once we compute
        * the transform), so we can assumed that every IMU message
@@ -512,7 +522,7 @@ namespace RobotLocalization
       tf2::Transform target_frame_trans;
       bool can_transform = RosFilterUtilities::lookupTransformSafe(tf_buffer_,
                                                                    base_link_frame_id_,
-                                                                   msg->header.frame_id,
+                                                                   frame_str,
                                                                    msg->header.stamp,
                                                                    transform_timeout_,
                                                                    target_frame_trans);
@@ -553,8 +563,16 @@ namespace RobotLocalization
 
   void NavSatTransform::odomCallback(const nav_msgs::OdometryConstPtr& msg)
   {
-    world_frame_id_ = msg->header.frame_id;
-    base_link_frame_id_ = msg->child_frame_id;
+        std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+    std::string child_frame_str (msg->child_frame_id);
+    if(child_frame_str.at(0)=='/'){
+       child_frame_str = child_frame_str.substr(1);
+    }
+    world_frame_id_ = frame_str;
+    base_link_frame_id_ = child_frame_str;
 
     if (!transform_good_ && !use_manual_datum_)
     {
@@ -721,9 +739,17 @@ namespace RobotLocalization
     // UTM->world_frame transform.
     if (!transform_good_ && use_odometry_yaw_ && !use_manual_datum_)
     {
+      std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+    std::string child_frame_str (msg->child_frame_id);
+    if(child_frame_str.at(0)=='/'){
+       child_frame_str = child_frame_str.substr(1);
+    }
       sensor_msgs::Imu *imu = new sensor_msgs::Imu();
       imu->orientation = msg->pose.pose.orientation;
-      imu->header.frame_id = msg->child_frame_id;
+      imu->header.frame_id = child_frame_str;
       imu->header.stamp = msg->header.stamp;
       sensor_msgs::ImuConstPtr imuPtr(imu);
       imuCallback(imuPtr);

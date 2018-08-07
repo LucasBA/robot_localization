@@ -33,14 +33,16 @@
 #include "robot_localization/ros_filter_types.h"
 
 #include <ros/ros.h>
+#include <ros/console.h>
 
 #include <vector>
-
+#include <iostream>
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "ukf_navigation_node");
   ros::NodeHandle nhLocal("~");
-
+  ROS_WARN("Hello %s", "World");
+  std::cout<<"HELLO WORLS\n";
   std::vector<double> args(3, 0);
 
   nhLocal.param("alpha", args[0], 0.001);

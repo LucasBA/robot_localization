@@ -717,6 +717,9 @@ namespace RobotLocalization
      * The default is the latter behavior (broadcast of odom->base_link).
      */
     nhLocal_.param("world_frame", worldFrameId_, odomFrameId_);
+    //ROS_ERROR_STREAM(odomFrameId_);
+    //ROS_ERROR_STREAM(mapFrameId_);
+    //ROS_ERROR_STREAM(baseLinkFrameId_);
 
     ROS_FATAL_COND(mapFrameId_ == odomFrameId_ ||
                    odomFrameId_ == baseLinkFrameId_ ||
@@ -737,7 +740,14 @@ namespace RobotLocalization
     FilterUtilities::appendPrefix(tfPrefix, odomFrameId_);
     FilterUtilities::appendPrefix(tfPrefix, baseLinkFrameId_);
     FilterUtilities::appendPrefix(tfPrefix, worldFrameId_);
-
+    ROS_WARN_STREAM("APPEND PREFIXES");
+    //ROS_ERROR_STREAM("tfPrefix:");
+    //ROS_ERROR_STREAM(tfPrefix); 
+    //ROS_ERROR_STREAM("tfPrefixPath"); 
+    //ROS_ERROR_STREAM(tfPrefixPath);
+    //ROS_ERROR_STREAM(odomFrameId_);
+    //ROS_ERROR_STREAM(mapFrameId_);
+    //ROS_ERROR_STREAM(baseLinkFrameId_);
     // Whether we're publshing the world_frame->base_link_frame transform
     nhLocal_.param("publish_tf", publishTransform_, true);
 
@@ -1060,7 +1070,7 @@ namespace RobotLocalization
           twistVarCounts[StateMemberVpitch] += twistUpdateVec[StateMemberVpitch];
           twistVarCounts[StateMemberVyaw] += twistUpdateVec[StateMemberVyaw];
         }
-
+        //ROS_ERROR_ONCE("~~~~~~~~~~~~~~~~~~~~~ODOM~~~~~~~~~~~~~~~");
         RF_DEBUG("Subscribed to " << odomTopic << " (" << odomTopicName << ")\n\t" <<
                  odomTopicName << "_differential is " << (differential ? "true" : "false") << "\n\t" <<
                  odomTopicName << "_pose_rejection_threshold is " << poseMahalanobisThresh << "\n\t" <<
@@ -1535,6 +1545,7 @@ namespace RobotLocalization
     Eigen::MatrixXd initialEstimateErrorCovariance(STATE_SIZE, STATE_SIZE);
     initialEstimateErrorCovariance.setZero();
     XmlRpc::XmlRpcValue estimateErrorCovarConfig;
+        //ROS_ERROR_ONCE("~~~~~~~~~~~~~~~~~~~~~NOISE STUFF~~~~~~~~~~~~~~~");
 
     if (nhLocal_.hasParam("initial_estimate_covariance"))
     {
@@ -1594,6 +1605,9 @@ namespace RobotLocalization
   void RosFilter<T>::odometryCallback(const nav_msgs::Odometry::ConstPtr &msg, const std::string &topicName,
     const CallbackData &poseCallbackData, const CallbackData &twistCallbackData)
   {
+    //ROS_ERROR_ONCE("~~~~~~~~~~~~~~~~~~~~~odometryCallback~~~~~~~~~~~~~~~");
+    //ROS_ERROR_STREAM(msg->header.frame_id);
+
     // If we've just reset the filter, then we want to ignore any messages
     // that arrive with an older timestamp
     if (msg->header.stamp <= lastSetPoseTime_)
@@ -1609,14 +1623,24 @@ namespace RobotLocalization
       RF_DEBUG("Received message that preceded the most recent pose reset. Ignoring...");
       return;
     }
-
+    std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+    std::string child_frame_str (msg->child_frame_id);
+    if(child_frame_str.at(0)=='/'){
+       child_frame_str = child_frame_str.substr(1);
+    }
     RF_DEBUG("------ RosFilter::odometryCallback (" << topicName << ") ------\n" << "Odometry message:\n" << *msg);
 
     if (poseCallbackData.updateSum_ > 0)
     {
       // Grab the pose portion of the message and pass it to the poseCallback
       geometry_msgs::PoseWithCovarianceStamped *posPtr = new geometry_msgs::PoseWithCovarianceStamped();
-      posPtr->header = msg->header;
+      posPtr->header.seq = msg->header.seq;
+      posPtr->header.stamp = msg->header.stamp;
+      posPtr->header.frame_id = frame_str;
+
       posPtr->pose = msg->pose;  // Entire pose object, also copies covariance
 
       geometry_msgs::PoseWithCovarianceStampedConstPtr pptr(posPtr);
@@ -1627,14 +1651,17 @@ namespace RobotLocalization
     {
       // Grab the twist portion of the message and pass it to the twistCallback
       geometry_msgs::TwistWithCovarianceStamped *twistPtr = new geometry_msgs::TwistWithCovarianceStamped();
-      twistPtr->header = msg->header;
-      twistPtr->header.frame_id = msg->child_frame_id;
+      twistPtr->header.seq = msg->header.seq;
+      twistPtr->header.stamp = msg->header.stamp;
+      //twistPtr->header.frame_id = frame_str;
+      twistPtr->header.frame_id = child_frame_str;
       twistPtr->twist = msg->twist;  // Entire twist object, also copies covariance
 
       geometry_msgs::TwistWithCovarianceStampedConstPtr tptr(twistPtr);
       twistCallback(tptr, twistCallbackData, baseLinkFrameId_);
     }
-
+    //ROS_ERROR_ONCE("~~~~~~~~~~~~~~~~~~~~~odometryCallbackEND~~~~~~~~~~~~~~~");
+    //ROS_ERROR_ONCE(msg->header.frame_id);
     RF_DEBUG("\n----- /RosFilter::odometryCallback (" << topicName << ") ------\n");
   }
 
@@ -1814,9 +1841,19 @@ namespace RobotLocalization
 
       if (getFilteredOdometryMessage(filteredPosition))
       {
+        std::string frame_str (filteredPosition.header.frame_id);
+        if(frame_str.at(0)=='/'){
+           frame_str = frame_str.substr(1);
+        }
+        std::string child_frame_str (filteredPosition.child_frame_id);
+        if(child_frame_str.at(0)=='/'){
+           child_frame_str = child_frame_str.substr(1);
+        }
         worldBaseLinkTransMsg_.header.stamp = filteredPosition.header.stamp + tfTimeOffset_;
-        worldBaseLinkTransMsg_.header.frame_id = filteredPosition.header.frame_id;
-        worldBaseLinkTransMsg_.child_frame_id = filteredPosition.child_frame_id;
+        //worldBaseLinkTransMsg_.header.frame_id = filteredPosition.header.frame_id;
+        //worldBaseLinkTransMsg_.child_frame_id = filteredPosition.child_frame_id;
+        worldBaseLinkTransMsg_.header.frame_id = frame_str;
+        worldBaseLinkTransMsg_.child_frame_id = child_frame_str;
 
         worldBaseLinkTransMsg_.transform.translation.x = filteredPosition.pose.pose.position.x;
         worldBaseLinkTransMsg_.transform.translation.y = filteredPosition.pose.pose.position.y;
@@ -2322,6 +2359,15 @@ namespace RobotLocalization
     // Set relevant header info
     std::string msgFrame = (msg->header.frame_id == "" ? baseLinkFrameId_ : msg->header.frame_id);
 
+    std::string frame_str = msgFrame;
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+       msgFrame = frame_str;
+    }
+    std::string target_frame_str = (targetFrame);
+    if(target_frame_str.at(0)=='/'){
+       target_frame_str = target_frame_str.substr(1);
+    }
     // 2. robot_localization lets users configure which variables from the sensor should be
     //    fused with the filter. This is specified at the sensor level. However, the data
     //    may go through transforms before being fused with the state estimate. In that case,
@@ -2353,9 +2399,17 @@ namespace RobotLocalization
     // It's unlikely that we'll get a velocity measurement in another frame, but
     // we have to handle the situation.
     tf2::Transform targetFrameTrans;
+    //ROS_ERROR_STREAM("canTransform");
+    //ROS_ERROR_STREAM("targetFrame");
+    //ROS_ERROR_STREAM(targetFrame);
+    //ROS_ERROR_STREAM("msgFrame");
+    //ROS_ERROR_STREAM(msgFrame);
+    //ROS_ERROR_STREAM("targetFrameTrans");
+    //ROS_ERROR_STREAM(targetFrameTrans);
+
     bool canTransform = RosFilterUtilities::lookupTransformSafe(tfBuffer_,
-                                                                targetFrame,
-                                                                msgFrame,
+                                                                target_frame_str,
+                                                                frame_str,
                                                                 msg->header.stamp,
                                                                 tfTimeout_,
                                                                 targetFrameTrans);
@@ -2378,11 +2432,12 @@ namespace RobotLocalization
           tf2::Vector3 stateTmp(state(StateMemberRoll),
                                 state(StateMemberPitch),
                                 state(StateMemberYaw));
+    
           // transform state orientation to IMU frame
           tf2::Transform imuFrameTrans;
           RosFilterUtilities::lookupTransformSafe(tfBuffer_,
-                                                  msgFrame,
-                                                  targetFrame,
+                                                  frame_str,
+                                                  target_frame_str,
                                                   msg->header.stamp,
                                                   tfTimeout_,
                                                   imuFrameTrans);
@@ -2513,7 +2568,11 @@ namespace RobotLocalization
     {
       // A blank target frame means we shouldn't bother
       // transforming the data
-      finalTargetFrame = msg->header.frame_id;
+          std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+      finalTargetFrame = frame_str;
       poseTmp.frame_id_ = finalTargetFrame;
     }
     else
@@ -2566,6 +2625,12 @@ namespace RobotLocalization
     poseTmp.setRotation(orientation);
 
     // 2. Get the target frame transformation
+              std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+      finalTargetFrame = frame_str;
+
     tf2::Transform targetFrameTrans;
     bool canTransform = RosFilterUtilities::lookupTransformSafe(tfBuffer_,
                                                                 finalTargetFrame,
@@ -2803,6 +2868,8 @@ namespace RobotLocalization
                    "\nFinal twist covariance:\n" << covarianceRotated << "\n");
 
           // Now pass this on to prepareTwist, which will convert it to the required frame
+          ROS_ERROR_STREAM("NEWTWIST");
+          ROS_ERROR_STREAM(twistPtr->header.frame_id);
           success = prepareTwist(ptr,
                                  topicName + "_twist",
                                  twistPtr->header.frame_id,
@@ -2830,7 +2897,8 @@ namespace RobotLocalization
           tf2::Transform initialMeasurement = initialMeasurements_[topicName];
           poseTmp.setData(initialMeasurement.inverseTimes(poseTmp));
         }
-
+          ROS_ERROR_STREAM("poseTmp");
+          ROS_ERROR_STREAM(poseTmp.frame_id_);
         // 7h. Apply the target frame transformation to the pose object.
         poseTmp.mult(targetFrameTrans, poseTmp);
         poseTmp.frame_id_ = finalTargetFrame;
@@ -2899,6 +2967,13 @@ namespace RobotLocalization
 
     // Determine the frame_id of the data
     std::string msgFrame = (msg->header.frame_id == "" ? targetFrame : msg->header.frame_id);
+    std::string frame_str (msg->header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+
+
+
 
     // 2. robot_localization lets users configure which variables from the sensor should be
     //    fused with the filter. This is specified at the sensor level. However, the data
@@ -2934,6 +3009,15 @@ namespace RobotLocalization
 
     // 4. We need to transform this into the target frame (probably base_link)
     tf2::Transform targetFrameTrans;
+
+
+    std::string  msg_frame_str =(msgFrame);
+    if(msg_frame_str.at(0)=='/'){
+       msg_frame_str = msg_frame_str.substr(1);
+       msgFrame = msg_frame_str;
+    }
+
+
     bool canTransform = RosFilterUtilities::lookupTransformSafe(tfBuffer_,
                                                                 targetFrame,
                                                                 msgFrame,
@@ -2942,7 +3026,8 @@ namespace RobotLocalization
                                                                 targetFrameTrans);
 
     if (canTransform)
-    {
+    {    
+
       // Transform to correct frame. Note that we can get linear velocity
       // as a result of the sensor offset and rotational velocity
       measTwistRot = targetFrameTrans.getBasis() * measTwistRot;

@@ -175,6 +175,14 @@ RosRobotLocalizationListener::~RosRobotLocalizationListener()
 void RosRobotLocalizationListener::odomAndAccelCallback(const nav_msgs::Odometry& odom,
                                                         const geometry_msgs::AccelWithCovarianceStamped& accel)
 {
+    std::string frame_str (odom.header.frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
+    std::string child_frame_str (odom.child_frame_id);
+    if(child_frame_str.at(0)=='/'){
+       child_frame_str = child_frame_str.substr(1);
+    }
   // Instantiate a state that can be added to the robot localization estimator
   EstimatorState state;
 
@@ -183,11 +191,11 @@ void RosRobotLocalizationListener::odomAndAccelCallback(const nav_msgs::Odometry
 
   // Get the base frame id from the odom message
   if ( base_frame_id_.empty() )
-    base_frame_id_ = odom.child_frame_id;
+    base_frame_id_ = frame_str;
 
   // Get the world frame id from the odom message
   if ( world_frame_id_.empty() )
-    world_frame_id_ = odom.header.frame_id;
+    world_frame_id_ = child_frame_str;
 
   // Pose: Position
   state.state(StateMemberX) = odom.pose.pose.position.x;
@@ -348,8 +356,12 @@ bool RosRobotLocalizationListener::getState(const double time,
   {
     world_frame_id = world_frame_id_;
   }
+    std::string frame_str (frame_id);
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
 
-  if ( frame_id == base_frame_id_ && world_frame_id == world_frame_id_ )
+  if ( frame_str == base_frame_id_ && world_frame_id == world_frame_id_ )
   {
     // If the state of the base frame is requested and the world frame equals the world frame of the robot_localization
     // estimator, we can simply return the state we got from the state estimator
@@ -516,8 +528,12 @@ bool RosRobotLocalizationListener::getState(const ros::Time& ros_time, const std
   {
     time = ros_time.toSec();
   }
+    std::string frame_str = frame_id;
+    if(frame_str.at(0)=='/'){
+       frame_str = frame_str.substr(1);
+    }
 
-  return getState(time, frame_id, state, covariance, world_frame_id);
+  return getState(time, frame_str, state, covariance, world_frame_id);
 }
 
 const std::string& RosRobotLocalizationListener::getBaseFrameId() const
